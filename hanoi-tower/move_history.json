@@ -1,0 +1,110 @@
+[
+    {
+        "game_id": "dd86d66a-7169-4191-944b-3b92a8839a98",
+        "player_name": "hhh",
+        "disks": 3,
+        "moves": [
+            {
+                "source": 1,
+                "destination": 3
+            },
+            {
+                "source": 1,
+                "destination": 2
+            },
+            {
+                "source": 3,
+                "destination": 2
+            },
+            {
+                "source": 1,
+                "destination": 3
+            },
+            {
+                "source": 2,
+                "destination": 1
+            },
+            {
+                "source": 2,
+                "destination": 3
+            },
+            {
+                "source": 1,
+                "destination": 3
+            }
+        ],
+        "time": 6.741
+    },
+    {
+        "game_id": "b5b11be6-44f0-426a-938b-23666661d6e0",
+        "player_name": "kjbkj",
+        "disks": 3,
+        "moves": [
+            {
+                "source": 1,
+                "destination": 3
+            },
+            {
+                "source": 1,
+                "destination": 2
+            },
+            {
+                "source": 3,
+                "destination": 2
+            },
+            {
+                "source": 1,
+                "destination": 3
+            },
+            {
+                "source": 2,
+                "destination": 1
+            },
+            {
+                "source": 2,
+                "destination": 3
+            },
+            {
+                "source": 1,
+                "destination": 3
+            }
+        ],
+        "time": 7.088
+    },
+    {
+        "game_id": "253b236b-ffb6-4b11-bb28-eed6c3f26193",
+        "player_name": "kjhkj",
+        "disks": 3,
+        "moves": [
+            {
+                "source": 1,
+                "destination": 3
+            },
+            {
+                "source": 1,
+                "destination": 2
+            },
+            {
+                "source": 3,
+                "destination": 2
+            },
+            {
+                "source": 1,
+                "destination": 3
+            },
+            {
+                "source": 2,
+                "destination": 1
+            },
+            {
+                "source": 2,
+                "destination": 3
+            },
+            {
+                "source": 1,
+                "destination": 3
+            }
+        ],
+        "time": 6.762
+    }
+]

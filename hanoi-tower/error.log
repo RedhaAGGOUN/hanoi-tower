@@ -681,3 +681,5 @@ Initialization error: 'HanoiGUI' object has no attribute 'state_manager'
 2025-07-11 09:15:41,080 - DEBUG - Selected difficulty: 5 disks
 2025-07-11 09:15:41,080 - DEBUG - Changing state to: get_name with kwargs: {'num_disks': 5}, immediate: False
 2025-07-11 09:15:44,832 - INFO - Quit event received, exiting
+Fatal error: HanoiGUI.__init__() takes 1 positional argument but 3 were given
+Fatal error: HanoiGUI.__init__() takes 1 positional argument but 3 were given

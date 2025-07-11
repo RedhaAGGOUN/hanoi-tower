@@ -17,3 +17,4 @@ if __name__ == "__main__":
         with open("error.log", "w") as f:
             f.write(str(e))
         sys.exit(1)
+        

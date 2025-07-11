@@ -4,6 +4,7 @@ import os
 import random
 import json
 import math
+import uuid
 
 from solve import hanoi_solver
 from utils import draw_text, ease_out_quad, Particle, TextInputBox
@@ -45,11 +46,14 @@ class HanoiGUI:
         self.pending_disks = 0
         self.name_input = None
         self.is_solver_used = False  # Track if solver was used
+        self.move_history = []  # Track moves in current game
+        self.game_id = str(uuid.uuid4())  # Unique ID for current game
 
         try:
             self.load_assets()
             self.load_scoreboard()
-            self.setup_menu() # Set the initial state
+            self.load_move_history()
+            self.setup_menu()  # Set the initial state
             if pygame.mixer.get_init():
                 pygame.mixer.music.play(-1)
         except Exception as e:
@@ -86,7 +90,12 @@ class HanoiGUI:
         try:
             with open('scoreboard.json', 'r') as f: self.scores = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError): self.scores = []
-    
+
+    def load_move_history(self):
+        try:
+            with open('move_history.json', 'r') as f: self.full_move_history = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError): self.full_move_history = []
+
     def save_scoreboard(self):
         try:
             with open('scoreboard.json', 'w') as f: json.dump(self.scores, f, indent=4)
@@ -94,6 +103,14 @@ class HanoiGUI:
             print(f"Error saving scoreboard: {e}")
             with open("error.log", "a") as f:
                 f.write(f"save_scoreboard error: {str(e)}\n")
+
+    def save_move_history(self):
+        try:
+            with open('move_history.json', 'w') as f: json.dump(self.full_move_history, f, indent=4)
+        except Exception as e:
+            print(f"Error saving move history: {e}")
+            with open("error.log", "a") as f:
+                f.write(f"save_move_history error: {str(e)}\n")
 
     def run(self):
         while True:
@@ -159,6 +176,8 @@ class HanoiGUI:
             self.game_state = 'get_name'
             self.pending_disks = max(1, num_disks)  # Ensure at least 1 disk
             self.name_input = TextInputBox(WIDTH / 2 - 200, HEIGHT / 2 - 25, 400, 60, self.menu_font, self.player_name)
+            self.move_history = []  # Reset move history for new game
+            self.game_id = str(uuid.uuid4())  # New game ID
         except Exception as e:
             print(f"Error in setup_get_name: {e}")
             with open("error.log", "a") as f:
@@ -192,9 +211,10 @@ class HanoiGUI:
             self.reset_disk_positions()
             btn_w, btn_h = 170, 50
             self.ui_buttons = {
-                'solve': {'rect': pygame.Rect(WIDTH - btn_w - 30, HEIGHT - btn_h * 2 - 40, btn_w, btn_h), 'text': 'Solution'},
+                'solve': {'rect': pygame.Rect(WIDTH - btn_w - 30, HEIGHT - btn_h * 3 - 60, btn_w, btn_h), 'text': 'Solution'},
+                'history': {'rect': pygame.Rect(WIDTH - btn_w - 30, HEIGHT - btn_h * 2 - 40, btn_w, btn_h), 'text': 'Historique'},
                 'back': {'rect': pygame.Rect(WIDTH - btn_w - 30, HEIGHT - btn_h - 30, btn_w, btn_h), 'text': 'Menu'},
-                'solver_explanation': {'rect': pygame.Rect(WIDTH - btn_w - 30, HEIGHT - btn_h * 3 - 60, btn_w, btn_h), 'text': 'Solveur?'}
+                'solver_explanation': {'rect': pygame.Rect(WIDTH - btn_w - 30, HEIGHT - btn_h * 4 - 80, btn_w, btn_h), 'text': 'Solveur?'}
             }
             self.start_time = pygame.time.get_ticks()
         except Exception as e:
@@ -242,6 +262,18 @@ class HanoiGUI:
                 f.write(f"setup_solver_explanation error: {str(e)}\n")
             raise
 
+    def setup_history(self):
+        try:
+            self.game_state = 'history'
+            self.ui_buttons = {
+                'back_menu': {'rect': pygame.Rect(30, 30, 150, 60), 'text': 'Retour'}
+            }
+        except Exception as e:
+            print(f"Error in setup_history: {e}")
+            with open("error.log", "a") as f:
+                f.write(f"setup_history error: {str(e)}\n")
+            raise
+
     # --- EVENT HANDLERS ---
     def handle_menu_events(self, event):
         try:
@@ -281,6 +313,8 @@ class HanoiGUI:
                         self.sounds['drop'].play(); self.setup_menu(); return
                     if self.ui_buttons.get('solve') and self.ui_buttons['solve']['rect'].collidepoint(mouse_pos):
                         self.sounds['drop'].play(); self.start_animation(); return
+                    if self.ui_buttons.get('history') and self.ui_buttons['history']['rect'].collidepoint(mouse_pos):
+                        self.sounds['drop'].play(); self.setup_history(); return
                     if self.ui_buttons.get('solver_explanation') and self.ui_buttons['solver_explanation']['rect'].collidepoint(mouse_pos):
                         self.sounds['drop'].play(); self.setup_solver_explanation(); return
                     for i, tower in enumerate(self.towers):
@@ -303,7 +337,9 @@ class HanoiGUI:
                 is_valid = target_idx is not None and (not self.towers[target_idx] or self.dragging_disk['size'] < self.towers[target_idx][-1]['size'])
                 if is_valid:
                     self.towers[target_idx].append(self.dragging_disk)
-                    if self.source_tower_idx != target_idx: self.moves += 1
+                    if self.source_tower_idx != target_idx:
+                        self.moves += 1
+                        self.move_history.append({'source': self.source_tower_idx + 1, 'destination': target_idx + 1})
                     self.sounds['drop'].play()
                 else:
                     self.towers[self.source_tower_idx].append(self.dragging_disk)
@@ -366,6 +402,19 @@ class HanoiGUI:
                 f.write(f"handle_solver_explanation_events error: {str(e)}, ui_buttons={self.ui_buttons}\n")
             raise
 
+    def handle_history_events(self, event):
+        try:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for name, btn in self.ui_buttons.items():
+                    if btn['rect'].collidepoint(event.pos) and name == 'back_menu':
+                        self.sounds['drop'].play()
+                        self.setup_menu()
+        except Exception as e:
+            print(f"Error in handle_history_events: {e}")
+            with open("error.log", "a") as f:
+                f.write(f"handle_history_events error: {str(e)}, ui_buttons={self.ui_buttons}\n")
+            raise
+
     # --- DRAWING FUNCTIONS ---
     def draw_menu(self):
         try:
@@ -405,6 +454,11 @@ class HanoiGUI:
                 elapsed_time = (pygame.time.get_ticks() - self.start_time) / 1000
                 minutes, seconds = divmod(elapsed_time, 60)
                 draw_text(self.screen, f"Temps: {int(minutes):02}:{int(seconds):02}", self.ui_font, WHITE, 40, 120)
+            # Draw last 5 moves
+            draw_text(self.screen, "Derniers Coups:", self.ui_font, GOLD, 40, 160)
+            for i, move in enumerate(self.move_history[-5:]):  # Show last 5 moves
+                move_text = f"{move['source']} -> {move['destination']}"
+                draw_text(self.screen, move_text, self.ui_font, WHITE, 40, 200 + i * 40)
             self.draw_credits()
         except Exception as e:
             print(f"Error in draw_game: {e}")
@@ -501,43 +555,52 @@ class HanoiGUI:
                 f.write(f"draw_solver_explanation error: {str(e)}\n")
             raise
 
+    def draw_history(self):
+        try:
+            self.screen.blit(self.background_img, (0, 0))
+            self.draw_frosted_overlay()
+            draw_text(self.screen, "Historique des Parties", self.title_font, GOLD, WIDTH / 2, 50, centered=True)
+            y_start = 150
+            for game in self.full_move_history:
+                if game['game_id'] == self.game_id:
+                    draw_text(self.screen, f"Partie: {game['player_name']} ({game['disks']} disques)", self.menu_font, WHITE, WIDTH / 2, y_start, centered=True)
+                    y_start += 50
+                    for i, move in enumerate(game['moves']):
+                        move_text = f"Coup {i+1}: {move['source']} -> {move['destination']}"
+                        draw_text(self.screen, move_text, self.ui_font, WHITE, WIDTH / 2, y_start + i * 40, centered=True)
+                    y_start += len(game['moves']) * 40 + 50
+            self.draw_buttons(self.ui_buttons)
+            self.screen.blit(self.logo_img, (WIDTH - self.logo_img.get_width() - 30, 30))
+            self.draw_credits()
+        except Exception as e:
+            print(f"Error in draw_history: {e}")
+            with open("error.log", "a") as f:
+                f.write(f"draw_history error: {str(e)}\n")
+            raise
+
     # --- CORE LOGIC & ANIMATION ---
     def start_animation(self):
         try:
             self.animating = True
             self.is_solver_used = True  # Set flag when solver is used
-            anim_towers = [[] for _ in range(3)]; anim_disks = []
-            base_w, h = 50, 25
-            if not DISK_PALETTE:
-                raise ValueError("DISK_PALETTE is empty")
-            for i in range(self.n, 0, -1):
-                disk = {'size': i, 'color': DISK_PALETTE[i % len(DISK_PALETTE)], 'rect': pygame.Rect(0, 0, base_w + i * 20, h), 'pos': pygame.Vector2(0,0)}
-                anim_disks.append(disk); anim_towers[0].append(disk)
+            self.move_history = []  # Clear move history for solver
+            self.moves = 0  # Reset move count
 
-            def reset_anim_disk_positions():
-                try:
-                    for i, tower in enumerate(anim_towers):
-                        for j, disk in enumerate(tower):
-                            disk['pos'] = pygame.Vector2(self.tower_rects[i].centerx, self.tower_rects[i].bottom - j * disk['rect'].height)
-                except Exception as e:
-                    print(f"Error in reset_anim_disk_positions: {e}")
-                    with open("error.log", "a") as f:
-                        f.write(f"reset_anim_disk_positions error: {str(e)}, anim_towers={anim_towers}\n")
-                    raise
-
-            reset_anim_disk_positions()
-            
-            solution = hanoi_solver(self.n, 0, 2, 1)
+            # Use main game state instead of temporary state
+            self.reset_disk_positions()
             original_buttons = self.ui_buttons.copy()
             solve_rect = original_buttons.get('solve', {}).get('rect', pygame.Rect(0,0,1,1))
-            self.ui_buttons['stop'] = {'rect': solve_rect, 'text': 'Arrêter', 'color': STOP_RED}; del self.ui_buttons['solve']
+            self.ui_buttons['stop'] = {'rect': solve_rect, 'text': 'Arrêter', 'color': STOP_RED}
+            del self.ui_buttons['solve']
+
+            solution = hanoi_solver(self.n, 0, 2, 1)
 
             for src, dest in solution:
                 # Validate tower indices
-                if not (0 <= src < len(anim_towers) and 0 <= dest < len(anim_towers)):
+                if not (0 <= src < len(self.towers) and 0 <= dest < len(self.towers)):
                     print(f"Invalid move: source={src}, destination={dest}")
                     with open("error.log", "a") as f:
-                        f.write(f"Invalid move in animation: source={src}, destination={dest}, n={self.n}, anim_towers={anim_towers}\n")
+                        f.write(f"Invalid move in animation: source={src}, destination={dest}, n={self.n}, towers={self.towers}\n")
                     self.sounds['invalid'].play()
                     self.ui_buttons = original_buttons
                     self.animating = False
@@ -548,40 +611,56 @@ class HanoiGUI:
                     if event.type == pygame.QUIT: pygame.quit(); sys.exit()
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         if self.ui_buttons['stop']['rect'].collidepoint(event.pos):
-                            self.sounds['invalid'].play(); self.ui_buttons = original_buttons; self.animating = False; return
+                            self.sounds['invalid'].play()
+                            self.ui_buttons = original_buttons
+                            self.animating = False
+                            return
 
-                if not anim_towers[src]:
+                if not self.towers[src]:
                     print(f"No disk to move from source tower {src}")
                     with open("error.log", "a") as f:
-                        f.write(f"No disk to move in animation: source={src}, anim_towers={anim_towers}\n")
+                        f.write(f"No disk to move in animation: source={src}, towers={self.towers}\n")
                     continue
-                disk_to_move = anim_towers[src].pop()
-                start_pos, mid_pos = disk_to_move['pos'].copy(), pygame.Vector2((self.tower_rects[src].centerx + self.tower_rects[dest].centerx) / 2, 150)
-                end_pos = pygame.Vector2(self.tower_rects[dest].centerx, self.tower_rects[dest].bottom - (len(anim_towers[dest]) * disk_to_move['rect'].height))
+
+                # Move disk in main game state
+                disk_to_move = self.towers[src].pop()
+                self.move_history.append({'source': src + 1, 'destination': dest + 1})
+                self.moves += 1
+
+                # Animate disk movement
+                start_pos = disk_to_move['pos'].copy()
+                mid_pos = pygame.Vector2((self.tower_rects[src].centerx + self.tower_rects[dest].centerx) / 2, 150)
+                end_pos = pygame.Vector2(self.tower_rects[dest].centerx, self.tower_rects[dest].bottom - (len(self.towers[dest]) * disk_to_move['rect'].height))
                 
                 for i in range(int(0.4 * FPS)):
                     progress = ease_out_quad(i / int(0.4 * FPS))
-                    if progress < 0.5: disk_to_move['pos'] = start_pos.lerp(mid_pos, progress * 2)
-                    else: disk_to_move['pos'] = mid_pos.lerp(end_pos, (progress - 0.5) * 2)
+                    if progress < 0.5:
+                        disk_to_move['pos'] = start_pos.lerp(mid_pos, progress * 2)
+                    else:
+                        disk_to_move['pos'] = mid_pos.lerp(end_pos, (progress - 0.5) * 2)
                     
-                    # Draw the animation frame from the temporary state
-                    self.screen.blit(self.background_img, (0, 0)); self.draw_scenery()
-                    for d in anim_disks: self.draw_single_disk(d)
-                    self.draw_buttons(self.ui_buttons); self.draw_credits(); pygame.display.flip()
+                    # Draw using draw_game to include move history
+                    self.draw_game()
+                    self.draw_single_disk(disk_to_move)  # Draw moving disk on top
+                    self.draw_buttons(self.ui_buttons)
+                    self.draw_credits()
+                    pygame.display.flip()
                     self.clock.tick(FPS)
                 
-                anim_towers[dest].append(disk_to_move); reset_anim_disk_positions()
+                # Place disk on destination tower
+                self.towers[dest].append(disk_to_move)
+                self.reset_disk_positions()
 
-            # Animation finished, update main game state to the solved state
-            self.towers, self.disks, self.moves = anim_towers, anim_disks, len(solution)
-            self.reset_disk_positions(); self.ui_buttons = original_buttons; self.animating = False
+            # Animation finished
+            self.ui_buttons = original_buttons
+            self.animating = False
             self.check_win()
         except Exception as e:
             print(f"Animation error: {e}")
             with open("error.log", "a") as f:
-                f.write(f"Animation error: {str(e)}, n={self.n}, anim_towers={anim_towers if 'anim_towers' in locals() else 'undefined'}, solution={solution if 'solution' in locals() else 'undefined'}\n")
+                f.write(f"Animation error: {str(e)}, n={self.n}, towers={self.towers}\n")
             self.sounds['invalid'].play()
-            self.ui_buttons = original_buttons if 'original_buttons' in locals() else self.ui_buttons
+            self.ui_buttons = original_buttons
             self.animating = False
 
     def check_win(self):
@@ -593,6 +672,15 @@ class HanoiGUI:
                 if not self.is_solver_used:  # Only add score if solver wasn't used
                     self.scores.append({'name': self.player_name, 'disks': self.n, 'time': time_taken, 'moves': self.moves})
                     self.save_scoreboard()
+                # Save move history
+                self.full_move_history.append({
+                    'game_id': self.game_id,
+                    'player_name': self.player_name,
+                    'disks': self.n,
+                    'moves': self.move_history,
+                    'time': time_taken
+                })
+                self.save_move_history()
                 win_tower_idx = 1 if len(self.towers[1]) == self.n else 2
                 if not DISK_PALETTE:
                     raise ValueError("DISK_PALETTE is empty")
@@ -630,7 +718,7 @@ class HanoiGUI:
             color = disk.get('color', (128, 128, 128))
             disk['rect'].center = disk['pos']
             pygame.draw.rect(self.screen, color, disk['rect'], border_radius=5)
-            border_color = [min(255, int(c * 0.8)) for c in color]
+            border_color = [min(255, c * 0.8) for c in color]
             pygame.draw.rect(self.screen, border_color, disk['rect'], 3, border_radius=5)
         except Exception as e:
             print(f"Error in draw_single_disk: {e}")
